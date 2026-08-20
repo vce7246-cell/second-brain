@@ -17,6 +17,7 @@ import { useWorkspaceFileViews } from './hooks/useWorkspaceFileViews.js';
 import { markdownAttachmentReference } from './lib/attachments.js';
 import { getFileKind } from '../shared/file-types.js';
 import { useAppShortcuts } from './hooks/useAppShortcuts.js';
+import { migrateKnowledgePath, recordRecentPath, removeKnowledgePath } from './lib/knowledge-history.js';
 
 export function App() {
   const [activePanel, setActivePanel] = useState<Panel>('dashboard');
@@ -97,6 +98,7 @@ export function App() {
     confirmLeaveCurrentFile(filePath, navigate);
   }, [confirmLeaveCurrentFile, openNote]);
   const handleKnowledgeNavigate = useCallback((filePath: string) => {
+    recordRecentPath(filePath);
     if (getFileKind(filePath) === 'markdown') handleNavigate(filePath);
     else openAttachment(filePath);
   }, [handleNavigate, openAttachment]);
@@ -181,7 +183,11 @@ export function App() {
 
       {activePanel === 'dashboard' && (
         <div className="app-panel flex-1 min-h-0">
-          <Dashboard onNavigate={handleKnowledgeNavigate} refreshKey={linkStoreVersion} />
+          <Dashboard
+            onNavigate={handleKnowledgeNavigate}
+            onStartWriting={showEditor}
+            refreshKey={linkStoreVersion}
+          />
         </div>
       )}
 
@@ -207,8 +213,12 @@ export function App() {
               onManageFile={openManaged}
               refreshKey={treeVersion}
               hasUnsavedChanges={dirty}
-              onPathMoved={moveActiveFile}
-              onPathTrashed={(selectedPathWasTrashed) => {
+              onPathMoved={(oldPath, newPath, selectedPathAfterMove) => {
+                migrateKnowledgePath(oldPath, newPath);
+                moveActiveFile(selectedPathAfterMove);
+              }}
+              onPathTrashed={(trashedPath, selectedPathWasTrashed) => {
+                removeKnowledgePath(trashedPath);
                 if (selectedPathWasTrashed) clearAllFiles();
               }}
               currentNotePath={selectedFile}

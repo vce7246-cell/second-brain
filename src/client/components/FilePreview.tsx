@@ -18,6 +18,7 @@ interface FilePreviewProps {
 function kindIcon(kind: PreviewFileKind): string {
   switch (kind) {
     case 'text': return 'TXT';
+    case 'drawio': return 'DRAW';
     case 'image': return 'IMG';
     case 'pdf': return 'PDF';
     case 'audio': return 'AUD';
@@ -28,6 +29,7 @@ function kindIcon(kind: PreviewFileKind): string {
 function typeLabel(kind: PreviewFileKind): string {
   switch (kind) {
     case 'text': return '文本 / 代码文件';
+    case 'drawio': return 'Draw.io 图表';
     case 'image': return '图片 / 导出图';
     case 'pdf': return 'PDF 文档';
     case 'audio': return '音频文件';
@@ -38,11 +40,45 @@ function typeLabel(kind: PreviewFileKind): string {
 function capabilitySummary(kind: PreviewFileKind): string {
   switch (kind) {
     case 'text': return '最多 1 MB 的 UTF-8 纯文本只读预览；不会执行 HTML 或代码。';
+    case 'drawio': return '最多 1 MB 的 Draw.io XML 只读结构预览；不会执行或改写图表。';
     case 'image': return '只读预览；适合查看图片和 .drawio.svg/.drawio.png 导出图。';
     case 'pdf': return '浏览器内只读预览；不会解析、编辑或上传内容。';
     case 'audio': return '使用浏览器原生控件在本地播放；不会上传内容。';
     case 'video': return '使用浏览器原生控件在本地播放；不会上传内容。';
   }
+}
+
+function DrawioPreview({ content }: { content: string }) {
+  const document = new DOMParser().parseFromString(content, 'application/xml');
+  const hasParserError = document.querySelector('parsererror') !== null;
+  const pages = Array.from(document.getElementsByTagName('diagram'));
+  const cells = document.getElementsByTagName('mxCell').length;
+  const pageNames = pages.map((page, index) => page.getAttribute('name') || `页面 ${index + 1}`);
+
+  return (
+    <div className="flex h-full flex-col gap-4 overflow-auto rounded border border-gray-200 bg-white p-5">
+      <div>
+        <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-blue-600">DIAGRAM SOURCE</p>
+        <h2 className="text-base font-medium text-gray-800">Draw.io 图表源文件</h2>
+        <p className="mt-2 text-xs leading-5 text-gray-500">
+          这是安全的只读结构预览。SecondBrain 不会执行 XML，也不会修改原文件；需要编辑时可用 diagrams.net 打开原文件。
+        </p>
+      </div>
+      {hasParserError ? (
+        <ViewState title="XML 结构无法解析" detail="仍可查看原始文本，但无法生成页面统计。" tone="danger" compact />
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="rounded border border-gray-100 bg-gray-50 p-3"><strong className="block text-sm text-gray-800">{pages.length}</strong><span className="text-xs text-gray-500">页面</span></div>
+          <div className="rounded border border-gray-100 bg-gray-50 p-3"><strong className="block text-sm text-gray-800">{cells}</strong><span className="text-xs text-gray-500">图形单元</span></div>
+        </div>
+      )}
+      {pageNames.length > 0 && <p className="text-xs text-gray-500">页面：{pageNames.join('、')}</p>}
+      <details>
+        <summary className="cursor-pointer text-xs text-blue-600">查看 XML 源文本</summary>
+        <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded bg-gray-50 p-3 font-mono text-[11px] leading-5 text-gray-600">{content}</pre>
+      </details>
+    </div>
+  );
 }
 
 export function FilePreview({
@@ -56,16 +92,17 @@ export function FilePreview({
 }: FilePreviewProps) {
   const [mediaFailed, setMediaFailed] = useState(false);
   const url = filePreviewUrl(filePath, revision);
-  const textPreview = useTextFilePreview(filePath, revision, kind === 'text');
+  const textPreview = useTextFilePreview(filePath, revision, kind === 'text' || kind === 'drawio');
 
   useEffect(() => setMediaFailed(false), [filePath, revision]);
 
   function previewContent(): JSX.Element {
-    if (kind === 'text') {
+    if (kind === 'text' || kind === 'drawio') {
       if (textPreview.loading) return <ViewState title="正在加载文本预览" busy />;
       if (textPreview.error) {
         return <ViewState title="文本预览加载失败" detail={textPreview.error} tone="danger" />;
       }
+      if (kind === 'drawio') return <DrawioPreview content={textPreview.content} />;
       return (
         <pre className="h-full overflow-auto whitespace-pre-wrap break-words rounded border border-gray-200 bg-white p-4 font-mono text-xs leading-5 text-gray-700">
           {textPreview.content}

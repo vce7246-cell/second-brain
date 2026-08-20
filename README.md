@@ -4,7 +4,7 @@
 
 A local-first personal knowledge base for Markdown notes and related files. SecondBrain Lite adds browser-based editing, wikilinks, backlinks, tags, local full-text search, file management, and interactive knowledge graphs on top of an ordinary folder you control.
 
-> **Status: pre-release technical preview (`v0.1.0`).** The core local workflow is usable and covered by automated tests, but the project does not yet provide an installer, packaged release, CI pipeline, or formal cross-platform release validation.
+> **Status: pre-release technical preview (`v0.1.0`).** The core local workflow is usable and covered by automated tests. GitHub Actions now verifies Node.js 18, 20, and 22 on pushes and pull requests; installers, packaged releases, and formal cross-platform release validation are still out of scope.
 
 ## Why SecondBrain Lite?
 
@@ -39,7 +39,7 @@ A local-first personal knowledge base for Markdown notes and related files. Seco
 | PDF | Read-only browser preview | File name and path only |
 | Audio and video | Local playback with browser controls | File name and path only |
 | Office documents | Manage, link, tag, and graph only | File name and path only |
-| Native `.drawio` | Manage, link, tag, and graph only | File name and path only |
+| Native `.drawio` | Read-only XML structure preview, manage, link, tag, and graph | File name and path only |
 | `.drawio.svg` / `.drawio.png` exports | Read-only image preview | File name and path only |
 
 Every visible regular file can become a knowledge item and participate in manual relationships. Non-Markdown files are not parsed for wikilinks and do not receive automatic semantic relationships.
@@ -71,7 +71,7 @@ your-vault/
 - npm
 - A modern desktop browser
 
-The current repository has been verified locally with Node.js 24.15.0 and npm 11.12.1. Node.js 18+ is the intended runtime range, but automated multi-version CI is not yet configured.
+The current repository has been verified locally with Node.js 24.15.0 and npm 11.12.1. Node.js 18+ is the intended runtime range, and GitHub Actions verifies Node.js 18, 20, and 22.
 
 ## Quick start
 
@@ -128,7 +128,7 @@ The backend uses port `3000`; Vite uses port `5173` and proxies `/api` and `/ws`
 
 ```bash
 # TypeScript strict-mode check
-npx tsc --noEmit --pretty false
+npm run typecheck
 
 # 64 server, persistence, security, import, preview, navigation, and search tests
 npm test
@@ -137,7 +137,7 @@ npm test
 npm run build
 ```
 
-There is currently no lint command and no packaged desktop or standalone-server build. The production frontend is built by Vite, while the server still runs TypeScript through `tsx`.
+There is currently no lint command, installer, packaged desktop release, or standalone server build. The production frontend is built by Vite, while the server still runs TypeScript through `tsx`.
 
 ## Keyboard shortcuts
 
@@ -176,7 +176,7 @@ bin/sb.cjs              # Windows-compatible local CLI wrapper
 - Imported external files are copied once; later changes to the originals are not synchronized.
 - Large-vault behavior still needs broader real-world validation. The graph asks for confirmation above 1,000 nodes.
 - There is no installer, signed binary, automatic updater, release migration system, or npm-published CLI.
-- CI, linting, formal browser compatibility testing, and reproducible release automation are not yet configured.
+- Linting, formal browser compatibility testing, and packaged release automation are not yet configured.
 
 ## Contributing
 
@@ -185,4 +185,3 @@ Before changing code, read [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md). Ke
 ## License
 
 No license has been selected yet. Until a `LICENSE` file is added, copyright is reserved and public repository visibility does not grant permission to copy, modify, or redistribute the code.
-

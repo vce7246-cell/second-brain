@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TreeNode } from '../types/index.js';
 import { fetchTree } from '../lib/api.js';
 import {
@@ -29,14 +29,31 @@ interface FileTreeProps {
   onManageFile?: (filePath: string, kind: ManagedFileKind) => void;
   refreshKey?: number;
   hasUnsavedChanges?: boolean;
-  onPathMoved?: (selectedPathAfterMove: string | null) => void;
-  onPathTrashed?: (selectedPathWasTrashed: boolean) => void;
+  onPathMoved?: (oldPath: string, newPath: string, selectedPathAfterMove: string | null) => void;
+  onPathTrashed?: (trashedPath: string, selectedPathWasTrashed: boolean) => void;
   currentNotePath?: string | null;
   onInsertImported?: (filePaths: string[]) => void;
 }
 
 function isManagedFileKind(kind: FileKind): kind is ManagedFileKind {
   return kind !== 'directory' && kind !== 'markdown' && !isPreviewFileKind(kind);
+}
+
+type TreeFilter = 'all' | 'markdown' | 'drawio' | 'image' | 'pdf' | 'media' | 'other';
+
+function matchesFilter(node: TreeNode, filter: TreeFilter): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'media') return node.kind === 'audio' || node.kind === 'video';
+  if (filter === 'other') return node.kind === 'document' || node.kind === 'other';
+  return node.kind === filter;
+}
+
+function filterTree(node: TreeNode, filter: TreeFilter): TreeNode | null {
+  if (node.type === 'file') return matchesFilter(node, filter) ? node : null;
+  const children = (node.children ?? [])
+    .map((child) => filterTree(child, filter))
+    .filter((child): child is TreeNode => child !== null);
+  return filter === 'all' || children.length > 0 ? { ...node, children } : null;
 }
 
 export function FileTree({
@@ -60,6 +77,7 @@ export function FileTree({
   const [contextTarget, setContextTarget] = useState<FileTreeContextTarget | null>(null);
   const [trashOpen, setTrashOpen] = useState(false);
   const [createRequest, setCreateRequest] = useState<FileCreateRequest | null>(null);
+  const [filter, setFilter] = useState<TreeFilter>('all');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -87,6 +105,8 @@ export function FileTree({
   useEffect(() => {
     void load();
   }, [load, refreshKey]);
+
+  const visibleTree = useMemo(() => tree ? filterTree(tree, filter) : null, [filter, tree]);
 
   const closeContextMenu = useCallback(() => setContextTarget(null), []);
 
@@ -216,6 +236,18 @@ export function FileTree({
           <button className="file-tree-action" onClick={() => setTrashOpen(true)}>回收站</button>
           <button className="file-tree-action" onClick={() => void load()}>刷新</button>
         </div>
+        <label className="file-tree-filter">
+          <span>筛选</span>
+          <select value={filter} onChange={(event) => setFilter(event.target.value as TreeFilter)} aria-label="按文件类型筛选">
+            <option value="all">全部文件</option>
+            <option value="markdown">Markdown</option>
+            <option value="drawio">Draw.io</option>
+            <option value="image">图片</option>
+            <option value="pdf">PDF</option>
+            <option value="media">音视频</option>
+            <option value="other">文档 / 其他</option>
+          </select>
+        </label>
       </div>
       {titleError && (
         <InlineNotice tone="warning" actionLabel="重试" onAction={() => void load()} className="rounded-none border-x-0 border-t-0">
@@ -224,12 +256,12 @@ export function FileTree({
       )}
 
       <div className="flex-1 overflow-y-auto py-1">
-        {tree.children?.length
-          ? tree.children.map((child) => renderNode(child, 0))
+        {visibleTree?.children?.length
+          ? visibleTree.children.map((child) => renderNode(child, 0))
           : (
             <ViewState
-              title="还没有文件"
-              detail="可以从上方新建 Markdown 笔记或文件夹。"
+              title={filter === 'all' ? '还没有文件' : '没有匹配的文件'}
+              detail={filter === 'all' ? '可以从上方新建 Markdown 笔记或文件夹。' : '可以切换筛选条件，或导入新的文件。'}
               compact
             />
           )}
@@ -243,7 +275,7 @@ export function FileTree({
         onCreateNote={(parentPath) => openCreateDialog('note', parentPath)}
         onCreateFolder={(parentPath) => openCreateDialog('folder', parentPath)}
         onTreeChanged={load}
-        onPathMoved={(_oldPath, _newPath, selectedPathAfterMove) => onPathMoved(selectedPathAfterMove)}
+        onPathMoved={onPathMoved}
         onPathTrashed={onPathTrashed}
       />
       <FileCreateDialog

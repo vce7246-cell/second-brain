@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { startServer } from '../src/server/index.js';
 import { WikilinkIndexer } from '../src/server/services/indexer.js';
+import { resolveWikilinkTarget } from '../src/client/lib/wikilink.js';
 
 async function createVault(): Promise<{ root: string; vault: string }> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'sb-index-'));
@@ -85,6 +86,116 @@ test('editing one source note only replaces its own link edges', async () => {
       ['alpha.md']
     );
   } finally {
+    await removeVault(root);
+  }
+});
+
+test('server links, backlinks, health, and graph use the same exact wikilink rules as the client', async () => {
+  const { root, vault } = await createVault();
+  await fs.mkdir(path.join(vault, 'folder-a'), { recursive: true });
+  await fs.mkdir(path.join(vault, 'folder-b'), { recursive: true });
+  await fs.writeFile(path.join(vault, 'source.md'), [
+    '[[Target]]',
+    '[[Target Extra]]',
+    '[[Extra]]',
+    '[[Shared]]',
+    '[[note]]',
+    '[[Missing]]',
+  ].join('\n'));
+  await fs.writeFile(path.join(vault, 'target.md'), '---\ntitle: Target\n---\n');
+  await fs.writeFile(path.join(vault, 'target-extra.md'), '---\ntitle: Target Extra\n---\n');
+  await fs.writeFile(path.join(vault, 'duplicate-a.md'), '---\ntitle: Shared\n---\n');
+  await fs.writeFile(path.join(vault, 'duplicate-b.md'), '---\ntitle: Shared\n---\n');
+  await fs.writeFile(path.join(vault, 'folder-a', 'note.md'), '# A\n');
+  await fs.writeFile(path.join(vault, 'folder-b', 'note.md'), '# B\n');
+
+  const running = await startServer({ notesDir: vault, port: 0, silent: true });
+  const baseUrl = `http://127.0.0.1:${running.port}`;
+
+  try {
+    const indexer = new WikilinkIndexer(vault);
+    await indexer.rebuild();
+    assert.equal(indexer.getTitleToPath().has('shared'), false);
+
+    const titles = Object.fromEntries(indexer.getPathToTitle());
+    const sourceLinks = indexer.getLinks('source.md');
+    assert.deepEqual(
+      sourceLinks.map((link) => [
+        link.target,
+        link.resolvedPath,
+        resolveWikilinkTarget(link.target, titles).status,
+      ]),
+      [
+        ['Target', 'target.md', 'found'],
+        ['Target Extra', 'target-extra.md', 'found'],
+        ['Extra', null, 'missing'],
+        ['Shared', null, 'ambiguous'],
+        ['note', null, 'ambiguous'],
+        ['Missing', null, 'missing'],
+      ],
+    );
+
+    const linksResponse = await fetch(`${baseUrl}/api/links/list`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ filePath: 'source.md' }),
+    });
+    assert.equal(linksResponse.status, 200);
+    const linkData = await linksResponse.json() as {
+      links: Array<{ target: string; resolvedPath: string | null; sourceType?: string }>;
+    };
+    assert.deepEqual(
+      linkData.links.map((link) => [link.target, link.resolvedPath, link.sourceType]),
+      sourceLinks.map((link) => [link.target, link.resolvedPath, 'wikilink']),
+    );
+
+    const backlinksResponse = await fetch(`${baseUrl}/api/notes/backlinks`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ filePath: 'target.md' }),
+    });
+    assert.equal(backlinksResponse.status, 200);
+    const backlinks = await backlinksResponse.json() as {
+      backlinks: Array<{ source: string; target: string; resolvedPath: string | null }>;
+    };
+    assert.deepEqual(backlinks.backlinks, [{
+      source: 'source.md',
+      target: 'Target',
+      resolvedPath: 'target.md',
+    }]);
+
+    const graph = await (await fetch(`${baseUrl}/api/notes/graph`)).json() as {
+      links: Array<{ source: string; target: string }>;
+    };
+    assert.deepEqual(graph.links, [
+      { source: 'source.md', target: 'target.md' },
+      { source: 'source.md', target: 'target-extra.md' },
+    ]);
+
+    const dashboard = await (await fetch(`${baseUrl}/api/dashboard`)).json() as {
+      health: {
+        brokenLinks: number;
+        duplicateTitleCount: number;
+        duplicateTitleItems: Array<{ title: string; paths: string[] }>;
+      };
+    };
+    assert.equal(dashboard.health.brokenLinks, 4);
+    assert.equal(dashboard.health.duplicateTitleCount, 2);
+    assert.deepEqual(dashboard.health.duplicateTitleItems, [
+      {
+        title: 'shared',
+        paths: ['duplicate-a.md', 'duplicate-b.md'],
+      },
+      {
+        title: 'note',
+        paths: ['folder-a/note.md', 'folder-b/note.md'],
+      },
+    ]);
+  } finally {
+    await running.watcher.close();
+    await new Promise<void>((resolve, reject) => {
+      running.server.close((error) => error ? reject(error) : resolve());
+    });
     await removeVault(root);
   }
 });

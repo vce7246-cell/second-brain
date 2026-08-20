@@ -1,6 +1,7 @@
 export type FileKind =
   | 'directory'
   | 'markdown'
+  | 'drawio'
   | 'text'
   | 'image'
   | 'pdf'
@@ -9,11 +10,12 @@ export type FileKind =
   | 'video'
   | 'other';
 
-export type PreviewFileKind = Extract<FileKind, 'text' | 'image' | 'pdf' | 'audio' | 'video'>;
+export type PreviewFileKind = Extract<FileKind, 'text' | 'drawio' | 'image' | 'pdf' | 'audio' | 'video'>;
 export type ManagedFileKind = Exclude<FileKind, 'directory' | 'markdown' | PreviewFileKind>;
 
 export function isPreviewFileKind(kind: FileKind): kind is PreviewFileKind {
   return kind === 'text'
+    || kind === 'drawio'
     || kind === 'image'
     || kind === 'pdf'
     || kind === 'audio'
@@ -51,6 +53,7 @@ export function getFileKind(fileName: string, isDirectory = false): FileKind {
   if (isDirectory) return 'directory';
   const extension = getFileExtension(fileName);
   if (extension === '.md' || extension === '.markdown') return 'markdown';
+  if (extension === '.drawio') return 'drawio';
   if (extension && TEXT_EXTENSIONS.has(extension)) return 'text';
   if (extension && IMAGE_EXTENSIONS.has(extension)) return 'image';
   if (extension === '.pdf') return 'pdf';

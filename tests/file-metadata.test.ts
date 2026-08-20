@@ -88,7 +88,7 @@ test('file metadata reports type, size, and modified time for managed files', as
       mtimeMs: number;
     };
     assert.equal(body.filePath, 'attachments/diagram.drawio');
-    assert.equal(body.kind, 'other');
+    assert.equal(body.kind, 'drawio');
     assert.equal(body.extension, '.drawio');
     assert.equal(body.size, Buffer.byteLength('<mxfile>diagram</mxfile>'));
     assert.equal(Math.abs(body.mtimeMs - stat.mtimeMs) < 1000, true);

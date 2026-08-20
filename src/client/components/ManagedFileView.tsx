@@ -1,4 +1,4 @@
-import { getFileExtension, type ManagedFileKind } from '../../shared/file-types.js';
+import type { ManagedFileKind } from '../../shared/file-types.js';
 import { KnowledgeSidebar } from './KnowledgeSidebar.js';
 
 interface ManagedFileViewProps {
@@ -24,10 +24,7 @@ function kindIcon(kind: ManagedFileViewProps['kind']): string {
   }
 }
 
-function supportSummary(kind: ManagedFileViewProps['kind'], extension?: string): string {
-  if (extension === '.drawio') {
-    return '当前作为 diagrams.net 源文件管理；导出为 .drawio.svg 或 .drawio.png 后可在 SecondBrain 中预览。';
-  }
+function supportSummary(kind: ManagedFileViewProps['kind']): string {
   switch (kind) {
     case 'document': return '当前作为 Office / 文档附件管理；不在浏览器内解析或上传到云端。';
     case 'other': return '当前作为通用附件管理，保留在本地知识库中。';
@@ -42,8 +39,6 @@ export function ManagedFileView({
   linkStoreVersion = 0,
   onNavigate,
 }: ManagedFileViewProps) {
-  const extension = getFileExtension(filePath);
-
   return (
     <section className="flex h-full min-w-0 flex-col bg-gray-50">
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-gray-200 bg-white px-3">
@@ -73,7 +68,7 @@ export function ManagedFileView({
         <KnowledgeSidebar
           filePath={filePath}
           typeLabel={kindLabel(kind)}
-          capability={supportSummary(kind, extension)}
+          capability={supportSummary(kind)}
           insertTarget={insertTarget}
           onInsertReference={onInsertReference}
           linkStoreVersion={linkStoreVersion}

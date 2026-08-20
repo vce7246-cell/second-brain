@@ -105,6 +105,15 @@ export interface DashboardData {
   orphanItems: DashboardItem[];
   folderGroups: Array<{ name: string; count: number; linkCount: number }>;
   recentItems: Array<DashboardItem & { mtime: number }>;
+  health: {
+    brokenLinks: number;
+    brokenLinkItems: Array<{ source: string; target: string }>;
+    orphanCount: number;
+    untaggedAttachments: number;
+    untaggedAttachmentItems: DashboardItem[];
+    duplicateTitleCount: number;
+    duplicateTitleItems: Array<{ title: string; paths: string[] }>;
+  };
 }
 
 /** 未链接提及 */

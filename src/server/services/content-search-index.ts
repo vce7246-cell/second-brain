@@ -4,6 +4,7 @@ import { MAX_TEXT_CONTENT_BYTES } from '../../shared/constants.js';
 import type { FileKind } from '../../shared/file-types.js';
 import { scanKnowledgeFiles } from './knowledge-scanner.js';
 import { resolveManagedPath } from './file-management.js';
+import { getFileExtension } from '../../shared/file-types.js';
 
 interface SearchDocument {
   path: string;
@@ -96,6 +97,8 @@ export class ContentSearchIndex {
     kind: Exclude<FileKind, 'directory'>
   ): Promise<string> {
     if (kind !== 'markdown' && kind !== 'text') return '';
+    // Draw.io XML is previewable but intentionally stays out of正文搜索。
+    if (getFileExtension(filePath) === '.drawio') return '';
 
     try {
       const fullPath = await resolveManagedPath(this.notesDir, filePath);

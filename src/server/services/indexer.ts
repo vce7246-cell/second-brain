@@ -8,6 +8,10 @@ import { readNote, scanNotes } from './note-scanner.js';
 import { scanKnowledgeFiles } from './knowledge-scanner.js';
 import type { FileKind } from '../../shared/file-types.js';
 import { buildKnowledgeGraph, type KnowledgeGraphData } from './knowledge-graph.js';
+import {
+  resolveWikilinkTarget,
+  type WikilinkEntry,
+} from '../../shared/wikilink-resolution.js';
 
 interface IndexData {
   /** filePath → 出链列表 */
@@ -20,6 +24,8 @@ interface IndexData {
   titleToPath: Map<string, string>;
   /** path → title 映射 */
   pathToTitle: Map<string, string>;
+  /** 重复标题 → 文件路径列表 */
+  duplicateTitles: Map<string, string[]>;
   /** 所有可见知识文件，包括 Markdown 和附件 */
   allKnowledgePaths: string[];
   /** 知识文件路径 → 文件类型 */
@@ -49,6 +55,7 @@ export class WikilinkIndexer {
       allPaths: [],
       titleToPath: new Map(),
       pathToTitle: new Map(),
+      duplicateTitles: new Map(),
       allKnowledgePaths: [],
       knowledgeKinds: new Map(),
     };
@@ -61,6 +68,7 @@ export class WikilinkIndexer {
     const allPaths: string[] = [];
     const titleToPath = new Map<string, string>();
     const pathToTitle = new Map<string, string>();
+    const titlePaths = new Map<string, string[]>();
 
     const [notes, knowledgeFiles] = await Promise.all([
       scanNotes(this.notesDir),
@@ -68,18 +76,29 @@ export class WikilinkIndexer {
     ]);
     for (const note of notes) {
       allPaths.push(note.path);
-      titleToPath.set(note.title.toLowerCase(), note.path);
       pathToTitle.set(note.path, note.title);
+      const pathsForTitle = titlePaths.get(note.title.toLowerCase()) ?? [];
+      pathsForTitle.push(note.path);
+      titlePaths.set(note.title.toLowerCase(), pathsForTitle);
       if (note.links.length > 0) {
         forwardLinks.set(note.path, note.links);
       }
     }
 
+    for (const [title, paths] of titlePaths) {
+      if (paths.length === 1) titleToPath.set(title, paths[0]);
+    }
+
+    const entries: WikilinkEntry[] = notes.map((note) => ({
+      path: note.path,
+      title: note.title,
+    }));
+
     // 构建反向链接 + 解析目标路径
     for (const [source, links] of forwardLinks) {
       const resolvedLinks = links.map((link) => ({
         ...link,
-        resolvedPath: this.resolveLink(link.target, titleToPath, allPaths),
+        resolvedPath: this.resolveLink(link.target, entries),
       }));
       forwardLinks.set(source, resolvedLinks);
 
@@ -103,6 +122,7 @@ export class WikilinkIndexer {
       allPaths,
       titleToPath,
       pathToTitle,
+      duplicateTitles: new Map([...titlePaths].filter(([, paths]) => paths.length > 1)),
       allKnowledgePaths,
       knowledgeKinds,
     };
@@ -110,36 +130,19 @@ export class WikilinkIndexer {
   }
 
   /** 解析 wikilink 标题 → 文件路径 */
-  private resolveLink(target: string, titleToPath: Map<string, string>, allPaths: string[]): string | null {
-    // 精确匹配 title
-    const lower = target.toLowerCase();
-    if (titleToPath.has(lower)) {
-      return titleToPath.get(lower)!;
-    }
-
-    // 模糊匹配：target 可能是文件名的一部分
-    for (const p of allPaths) {
-      const stem = path.basename(p, '.md').toLowerCase();
-      if (stem === lower) {
-        return p;
-      }
-    }
-
-    // 部分匹配：包含关系
-    for (const p of allPaths) {
-      const stem = path.basename(p, '.md').toLowerCase();
-      if (stem.includes(lower) || lower.includes(stem)) {
-        return p;
-      }
-    }
-
-    return null;
+  private resolveLink(target: string, entries: readonly WikilinkEntry[]): string | null {
+    const resolution = resolveWikilinkTarget(target, entries);
+    return resolution.status === 'found' ? resolution.path : null;
   }
 
   private resolveCurrentLinks(links: LinkInfo[]): LinkInfo[] {
+    const entries: WikilinkEntry[] = Array.from(this.data.pathToTitle, ([filePath, title]) => ({
+      path: filePath,
+      title,
+    }));
     return links.map((link) => ({
       ...link,
-      resolvedPath: this.resolveLink(link.target, this.data.titleToPath, this.data.allPaths),
+      resolvedPath: this.resolveLink(link.target, entries),
     }));
   }
 
@@ -196,6 +199,10 @@ export class WikilinkIndexer {
 
   getTitleToPath(): Map<string, string> {
     return this.data.titleToPath;
+  }
+
+  getDuplicateTitles(): Map<string, string[]> {
+    return this.data.duplicateTitles;
   }
 
   /** 获取某文件的所有出链（合并 wikilink + 界面链接） */
@@ -274,7 +281,6 @@ export class WikilinkIndexer {
     }
 
     this.data.pathToTitle.set(relPath, parsed.title);
-    this.data.titleToPath.set(parsed.title.toLowerCase(), relPath);
 
     const oldLinks = this.data.forwardLinks.get(relPath) || [];
     const resolvedLinks = this.resolveCurrentLinks(parsed.links);

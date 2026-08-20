@@ -3,6 +3,7 @@ import type { FileKind } from '../../shared/file-types.js';
 export function fileKindIcon(kind: FileKind): string {
   switch (kind) {
     case 'markdown': return 'MD';
+    case 'drawio': return 'DRAW';
     case 'text': return 'TXT';
     case 'image': return 'IMG';
     case 'pdf': return 'PDF';
@@ -17,6 +18,7 @@ export function fileKindIcon(kind: FileKind): string {
 export function fileKindLabel(kind: FileKind): string {
   switch (kind) {
     case 'markdown': return '笔记';
+    case 'drawio': return 'Draw.io';
     case 'text': return '文本';
     case 'image': return '图片';
     case 'pdf': return 'PDF';

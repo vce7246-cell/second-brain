@@ -69,6 +69,21 @@ test('text previews are plain text and reject oversized files', async () => {
   }
 });
 
+test('drawio source files are available as safe XML text previews', async () => {
+  const { root, vault } = await createSandbox();
+  await fs.writeFile(path.join(vault, 'diagram.drawio'), '<mxfile><diagram name="首页"><mxGraphModel><root><mxCell id="0" /></root></mxGraphModel></diagram></mxfile>');
+  const api = await startFileApi(vault);
+  try {
+    const response = await preview(api.baseUrl, 'diagram.drawio');
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type') ?? '', /^text\/plain/);
+    assert.match(await response.text(), /mxfile/);
+  } finally {
+    await closeServer(api.server);
+    await removeSandbox(root);
+  }
+});
+
 test('audio and video previews support local media responses and ranges', async () => {
   const { root, vault } = await createSandbox();
   await fs.writeFile(path.join(vault, 'sample.mp3'), Buffer.from([1, 2, 3, 4]));

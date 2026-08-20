@@ -26,7 +26,7 @@ export function createFilePreviewRouter(notesDir: string): Router {
       }
 
       res.setHeader('X-Content-Type-Options', 'nosniff');
-      if (kind === 'text') {
+      if (kind === 'text' || kind === 'drawio') {
         if (stat.size > MAX_TEXT_PREVIEW_BYTES) {
           res.status(413).json({
             error: 'Text file exceeds the 1 MB preview limit',

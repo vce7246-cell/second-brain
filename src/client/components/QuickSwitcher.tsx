@@ -6,7 +6,10 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { getFileKind } from '../../shared/file-types.js';
 import type { KnowledgeSearchResult } from '../types/index.js';
 import { searchKnowledge } from '../lib/api.js';
+import { fetchTree } from '../lib/api.js';
+import type { TreeNode } from '../types/index.js';
 import { fileKindIcon, fileKindLabel } from '../lib/file-presentation.js';
+import { getFavoritePaths, getRecentPaths, isFavoritePath, pruneKnowledgePaths, toggleFavoritePath } from '../lib/knowledge-history.js';
 
 interface QuickSwitcherProps {
   onClose: () => void;
@@ -19,6 +22,8 @@ export function QuickSwitcher({ onClose, onSelect }: QuickSwitcherProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recentPaths, setRecentPaths] = useState<string[]>(getRecentPaths);
+  const [favoritePaths, setFavoritePaths] = useState<string[]>(getFavoritePaths);
   const inputRef = useRef<HTMLInputElement>(null);
   const requestSeq = useRef(0);
   const selectedRef = useRef<HTMLButtonElement>(null);
@@ -69,6 +74,25 @@ export function QuickSwitcher({ onClose, onSelect }: QuickSwitcherProps) {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    function collectPaths(node: TreeNode, paths: Set<string>): void {
+      if (node.type === 'file') paths.add(node.path);
+      node.children?.forEach((child) => collectPaths(child, paths));
+    }
+    void fetchTree().then((tree) => {
+      if (!active) return;
+      const validPaths = new Set<string>();
+      collectPaths(tree, validPaths);
+      pruneKnowledgePaths(validPaths);
+      setRecentPaths(getRecentPaths());
+      setFavoritePaths(getFavoritePaths());
+    }).catch(() => {
+      // 文件树加载失败时保留本地历史，避免把暂时不可用误判为已删除。
+    });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
     const selected = selectedRef.current;
     const container = selected?.parentElement;
     if (!selected || !container) return;
@@ -116,6 +140,34 @@ export function QuickSwitcher({ onClose, onSelect }: QuickSwitcherProps) {
     onSelect(path);
     onClose();
   }, [onSelect, onClose]);
+
+  const toggleFavorite = useCallback((path: string) => {
+    toggleFavoritePath(path);
+    setFavoritePaths(getFavoritePaths());
+  }, []);
+
+  function storedRow(path: string, section: string): JSX.Element {
+    const kind = getFileKind(path);
+    return (
+      <div key={`${section}-${path}`} className="flex items-center gap-2 px-4 py-2 hover:bg-gray-50">
+        <button className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm" onClick={() => handleRowClick(path)}>
+          <span className="kind-chip shrink-0" aria-label={fileKindLabel(kind)}>{fileKindIcon(kind)}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-medium">{path.split('/').pop() || path}</span>
+            <span className="block truncate text-xs text-gray-400">{path}</span>
+          </span>
+        </button>
+        <button
+          className={`shrink-0 rounded px-1.5 text-sm ${isFavoritePath(path) ? 'text-amber-500' : 'text-gray-300 hover:text-amber-500'}`}
+          onClick={() => toggleFavorite(path)}
+          aria-label={isFavoritePath(path) ? `取消收藏 ${path}` : `收藏 ${path}`}
+          title={isFavoritePath(path) ? '取消收藏' : '收藏'}
+        >
+          ★
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -182,9 +234,11 @@ export function QuickSwitcher({ onClose, onSelect }: QuickSwitcherProps) {
               </button>
             </div>
           ) : query.trim() === '' ? (
-            <p className="px-4 py-3 text-sm text-gray-400">
-              输入标题、文件名或路径快速打开知识条目。
-            </p>
+            <div className="py-2">
+              {favoritePaths.length > 0 && <section><h3 className="px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">收藏</h3>{favoritePaths.map((path) => storedRow(path, 'favorite'))}</section>}
+              {recentPaths.length > 0 && <section><h3 className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-gray-400">最近访问</h3>{recentPaths.map((path) => storedRow(path, 'recent'))}</section>}
+              {favoritePaths.length === 0 && recentPaths.length === 0 && <p className="px-4 py-3 text-sm text-gray-400">输入标题、文件名或路径快速打开知识条目。</p>}
+            </div>
           ) : results.length === 0 ? (
             <p className="px-4 py-3 text-sm text-gray-400">无匹配结果</p>
           ) : (

@@ -19,6 +19,7 @@ function kindLabel(kind: AttachmentEntry['kind']): string {
     case 'image': return '图片';
     case 'pdf': return 'PDF';
     case 'text': return '文本';
+    case 'drawio': return 'Draw.io';
     case 'document': return '文档';
     case 'audio': return '音频';
     case 'video': return '视频';

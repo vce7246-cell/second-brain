@@ -20,7 +20,7 @@ interface FileTreeActionsProps {
   onCreateFolder: (parentPath: string) => void;
   onTreeChanged: () => void | Promise<void>;
   onPathMoved: (oldPath: string, newPath: string, selectedPathAfterMove: string | null) => void;
-  onPathTrashed: (selectedPathWasTrashed: boolean) => void;
+  onPathTrashed: (trashedPath: string, selectedPathWasTrashed: boolean) => void;
 }
 
 function pathIncludes(parentPath: string, candidate: string | null): boolean {
@@ -139,7 +139,7 @@ export function FileTreeActions({
     setTrashError(null);
     try {
       await deleteFile(trashTarget.path);
-      onPathTrashed(selectedPathWasTrashed);
+      onPathTrashed(trashTarget.path, selectedPathWasTrashed);
       await onTreeChanged();
       setTrashTarget(null);
     } catch (error) {

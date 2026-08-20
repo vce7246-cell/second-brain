@@ -59,7 +59,7 @@ test('visible non-Markdown files are searchable knowledge entries and graph node
     assert.deepEqual(
       graph.nodes.map((node) => [node.id, node.kind]),
       [
-        ['diagram.drawio', 'other'],
+      ['diagram.drawio', 'drawio'],
         ['docs/reference.pdf', 'pdf'],
         ['image.png', 'image'],
         ['note.md', 'markdown'],
@@ -186,6 +186,15 @@ test('dashboard summarizes visible notes and attachments as one knowledge librar
       orphanItems: Array<{ path: string; title: string; kind: string }>;
       folderGroups: Array<{ name: string; count: number; linkCount: number }>;
       recentItems: Array<{ path: string; kind: string }>;
+      health: {
+        brokenLinks: number;
+        brokenLinkItems: Array<{ source: string; target: string }>;
+        orphanCount: number;
+        untaggedAttachments: number;
+        untaggedAttachmentItems: Array<{ path: string; title: string; kind: string }>;
+        duplicateTitleCount: number;
+        duplicateTitleItems: Array<{ title: string; paths: string[] }>;
+      };
     };
 
     assert.deepEqual({
@@ -201,6 +210,18 @@ test('dashboard summarizes visible notes and attachments as one knowledge librar
       totalLinks: 3,
       totalTags: 1,
     });
+    assert.deepEqual(dashboard.health, {
+      brokenLinks: 0,
+      brokenLinkItems: [],
+      orphanCount: 1,
+      untaggedAttachments: 2,
+      untaggedAttachmentItems: [
+        { path: 'diagram.drawio', title: 'diagram.drawio', kind: 'drawio' },
+        { path: 'docs/reference.pdf', title: 'reference.pdf', kind: 'pdf' },
+      ],
+      duplicateTitleCount: 0,
+      duplicateTitleItems: [],
+    });
     assert.deepEqual(dashboard.coreNodes, [
       { path: 'note.md', title: 'note', kind: 'markdown', relationCount: 3 },
       { path: 'docs/reference.pdf', title: 'reference.pdf', kind: 'pdf', relationCount: 1 },
@@ -208,7 +229,7 @@ test('dashboard summarizes visible notes and attachments as one knowledge librar
       { path: 'linked.md', title: 'linked', kind: 'markdown', relationCount: 1 },
     ]);
     assert.deepEqual(dashboard.orphanItems, [
-      { path: 'diagram.drawio', title: 'diagram.drawio', kind: 'other' },
+      { path: 'diagram.drawio', title: 'diagram.drawio', kind: 'drawio' },
     ]);
     assert.deepEqual(dashboard.folderGroups, [
       { name: 'docs', count: 1, linkCount: 1 },
@@ -224,7 +245,7 @@ test('dashboard summarizes visible notes and attachments as one knowledge librar
         ['image.png', 'image'],
         ['linked.md', 'markdown'],
         ['note.md', 'markdown'],
-        ['diagram.drawio', 'other'],
+        ['diagram.drawio', 'drawio'],
       ]
     );
   } finally {

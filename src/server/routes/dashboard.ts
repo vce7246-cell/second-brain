@@ -118,6 +118,20 @@ export function registerDashboardRoute(
     }
 
     const totalNotes = items.filter((item) => item.kind === 'markdown').length;
+    const brokenLinks = indexer.getAllPaths()
+      .flatMap((filePath) => indexer.getLinks(filePath))
+      .filter((link) => link.resolvedPath === null).length;
+    const brokenLinkItems = indexer.getAllPaths()
+      .flatMap((filePath) => indexer.getLinks(filePath)
+        .filter((link) => link.resolvedPath === null)
+        .map((link) => ({ source: filePath, target: link.target })))
+      .slice(0, 5);
+    const untaggedAttachments = items.filter((item) => item.kind !== 'markdown'
+      && linkStore.getTags(item.path).length === 0).length;
+    const untaggedAttachmentItems = items
+      .filter((item) => item.kind !== 'markdown' && linkStore.getTags(item.path).length === 0)
+      .slice(0, 5);
+    const duplicateTitleItems = Array.from(indexer.getDuplicateTitles(), ([title, paths]) => ({ title, paths }));
     res.json({
       totalItems: items.length,
       totalNotes,
@@ -129,6 +143,15 @@ export function registerDashboardRoute(
       folderGroups: Array.from(folderGroups, ([name, group]) => ({ name, ...group }))
         .sort((left, right) => right.count - left.count || comparePaths(left.name, right.name)),
       recentItems: await getRecentItems(indexer.getNotesDir(), items),
+      health: {
+        brokenLinks,
+        brokenLinkItems,
+        orphanCount: items.filter((item) => !relatedPaths.has(item.path)).length,
+        untaggedAttachments,
+        untaggedAttachmentItems,
+        duplicateTitleCount: duplicateTitleItems.length,
+        duplicateTitleItems: duplicateTitleItems.slice(0, 5),
+      },
     });
   });
 }

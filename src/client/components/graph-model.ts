@@ -26,6 +26,7 @@ const TAG_COLORS = [
 
 const FILE_KIND_COLORS: Record<Exclude<FileKind, 'directory' | 'markdown'>, string> = {
   text: '#517565',
+  drawio: '#3d6f8f',
   image: '#75677f',
   pdf: '#a3473e',
   document: '#9b7847',

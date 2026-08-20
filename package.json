@@ -11,7 +11,9 @@
     "dev": "concurrently -n server,client -c blue,green \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "tsx watch src/server/index.ts",
     "dev:client": "vite",
-    "build": "vite build",
+    "typecheck": "tsc --noEmit --pretty false",
+    "build:client": "vite build",
+    "build": "npm run typecheck && npm run build:client",
     "benchmark:index": "tsx scripts/benchmark-index.ts",
     "test": "tsx --test tests/server-security.test.ts tests/file-save.test.ts tests/file-management.test.ts tests/file-import.test.ts tests/file-import-collection.test.ts tests/file-preview.test.ts tests/file-metadata.test.ts tests/file-move-metadata.test.ts tests/markdown-security.test.ts tests/wikilink-navigation.test.ts tests/attachment-reference.test.ts tests/link-store-safety.test.ts tests/index-refresh.test.ts tests/knowledge-entries.test.ts tests/content-search.test.ts",
     "start": "tsx src/cli.ts start"
